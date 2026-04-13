@@ -127,7 +127,7 @@
       <span id="smsg">Ready</span>
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
-      <span id="slocation" style="color:#aaa;font-style:italic"></span>
+      <span id="slocation"></span>
       <label id="lbl-advance">
         <input type="checkbox" id="chk-advance" checked style="cursor:pointer"> Auto-advance
       </label>
@@ -146,7 +146,6 @@ var gpsPoints = [];
 var ggaMap    = {};
 var startUTC  = 0;
 var leafMap   = null, gpsMarker = null;
-var syncLock  = false;
 var hasRear   = false, hasGPS = false;
 var recsList  = [], activeRecIdx = -1;
 
@@ -505,24 +504,36 @@ function pad(n){ return String(Math.floor(n)).padStart(2, '0'); }
 document.getElementById('sel-tz').addEventListener('change',  function(){ updateTelemetry(vF.currentTime || 0); });
 document.getElementById('sel-spd').addEventListener('change', function(){ updateTelemetry(vF.currentTime || 0); });
 
-/* ═══ Video sync ═════════════════════════════════════════ */
-function syncTo(other, t) {
-  if (syncLock) return;
-  if (Math.abs(other.currentTime - t) > 0.4) {
-    syncLock = true;
-    other.currentTime = t;
-    setTimeout(function(){ syncLock = false; }, 150);
-  }
+/* ═══ Video sync ═════════════════════════════════════════
+   syncTarget tracks which video WE just programmatically seeked.
+   When that video's 'seeked' fires we know it was ours — clear
+   the flag and ignore it, preventing the feedback loop that was
+   causing playback to stall.
+══════════════════════════════════════════════════════════ */
+var syncTarget = null; /* 'rear' | 'front' | null */
+
+function doSync(video, t) {
+  if (Math.abs(video.currentTime - t) < 0.5) return;
+  syncTarget = (video === vR) ? 'rear' : 'front';
+  video.currentTime = t;
 }
-vF.addEventListener('play',       function(){ if (hasRear) vR.play().catch(function(){}); });
-vF.addEventListener('pause',      function(){ if (hasRear) vR.pause(); });
-vF.addEventListener('seeked',     function(){ if (hasRear) syncTo(vR, vF.currentTime); });
-vR.addEventListener('play',       function(){ if (hasRear) vF.play().catch(function(){}); });
-vR.addEventListener('pause',      function(){ if (hasRear) vF.pause(); });
-vR.addEventListener('seeked',     function(){ if (hasRear) syncTo(vF, vR.currentTime); });
-vF.addEventListener('timeupdate', function(){
-  if (hasRear) syncTo(vR, vF.currentTime);
-  if (hasGPS)  updateTelemetry(vF.currentTime);
+
+vF.addEventListener('play',  function() { if (hasRear) { doSync(vR, vF.currentTime); vR.play().catch(function(){}); } });
+vF.addEventListener('pause', function() { if (hasRear) vR.pause(); });
+vF.addEventListener('seeked', function() {
+  if (syncTarget === 'front') { syncTarget = null; return; } /* our own seek, ignore */
+  if (hasRear) doSync(vR, vF.currentTime);
+});
+
+vR.addEventListener('play',  function() { if (hasRear) vF.play().catch(function(){}); });
+vR.addEventListener('pause', function() { if (hasRear) vF.pause(); });
+vR.addEventListener('seeked', function() {
+  if (syncTarget === 'rear') { syncTarget = null; return; } /* our own seek, ignore */
+  if (hasRear) doSync(vF, vR.currentTime);
+});
+
+vF.addEventListener('timeupdate', function() {
+  if (hasGPS) updateTelemetry(vF.currentTime);
 });
 
 vF.addEventListener('ended', function() {
