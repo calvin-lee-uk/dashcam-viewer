@@ -4,140 +4,276 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HP Dashcam Viewer</title>
-<!--link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/-->
-<link rel="stylesheet" href="leaflet.css"/>
-<link rel="stylesheet" href="hp-dashcam-viewer.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,sans-serif;background:#f0efe9;color:#1a1a1a}
+
+/* ── Root: vertical split ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;padding:8px;gap:8px}
+
+/* ── Top: video row ── */
+.video-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.vcam{background:#000;border-radius:7px;overflow:hidden;position:relative}
+.vcam-lbl{
+  position:absolute;top:7px;left:7px;z-index:1;
+  background:rgba(0,0,0,.55);color:#fff;
+  font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px;letter-spacing:.05em;
+}
+.vcam video{width:100%;display:block}
+.vcam-blank{
+  width:100%;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#555;letter-spacing:.03em;background:#111;
+}
+
+/* ── Bottom: lower-row + sbar ── */
+.lower-section{display:flex;flex-direction:column;flex:1;min-height:0;gap:6px}
+
+/* 3-column grid: sidebar | map | telem */
+.lower-row{
+  display:grid;
+  grid-template-columns:200px 1fr 160px;
+  gap:8px;flex:1;min-height:0;
+}
+
+/* ── Sidebar (now inside lower-row) ── */
+.sidebar{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+}
+.sb-top{padding:8px;border-bottom:1px solid #e2e2dd;flex-shrink:0}
+.folder-wrap{position:relative}
+.folder-wrap input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;z-index:2;width:100%;height:100%;
+}
+.folder-wrap label{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 8px;background:#f5f4ef;
+  border:1px solid #ddd;border-radius:6px;
+  font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap;
+}
+.folder-wrap label:hover{background:#e8e7e0}
+.folder-path{
+  margin-top:4px;font-size:10px;color:#aaa;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;min-height:13px;
+}
+.sb-label{
+  font-size:9px;font-weight:500;text-transform:uppercase;
+  letter-spacing:.07em;color:#bbb;padding:6px 8px 3px;flex-shrink:0;
+}
+.rec-list{flex:1;overflow-y:auto}
+.rec-empty{padding:14px 8px;font-size:11px;color:#c0bfb8;text-align:center;line-height:1.8}
+.rec-item{
+  padding:5px 8px;border-bottom:1px solid #f5f4ef;
+  cursor:pointer;transition:background .1s;user-select:none;
+}
+.rec-item:hover{background:#f5f4ef}
+.rec-item.active{background:#e5f0fa}
+.ri-date{font-size:11px;font-variant-numeric:tabular-nums;color:#1a1a1a;display:inline;padding-right:.6em}
+.ri-wkday{font-size:11px;color:#999;display:inline}
+.ri-time{font-size:11px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:.6em}
+.rec-item.active .ri-date{color:#1a6ea8}
+.rec-item.active .ri-time{color:#5a9fd4}
+.ri-badges{margin-top:2px;display:flex;gap:3px}
+.ri-badge{
+  font-size:9px;font-weight:500;letter-spacing:.04em;
+  padding:1px 4px;border-radius:3px;
+  background:#eef4ea;color:#5c9e2c;border:1px solid #c8e0b8;
+}
+.ri-badge.miss{background:#f5f4ef;color:#bbb;border-color:#e2e2dd}
+
+/* ── Map ── */
+#map{border-radius:7px;border:1px solid #e2e2dd}
+
+/* ── Telemetry (vertical list) ── */
+.telem{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  padding:8px;display:flex;flex-direction:column;gap:0;overflow-y:auto;
+}
+.telem-title{
+  font-size:9px;font-weight:500;text-transform:uppercase;
+  letter-spacing:.07em;color:#bbb;margin-bottom:6px;flex-shrink:0;
+}
+.trow{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid #f5f4ef;flex-shrink:0;
+}
+.trow:last-child{border-bottom:none}
+.trow .lbl{font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.05em}
+.trow .val{font-size:12px;font-weight:500;color:#1a1a1a;text-align:right}
+.trow .val.big{font-size:16px}
+.trow select{
+  font-size:10px;padding:1px 2px;border:1px solid #ddd;
+  border-radius:4px;background:#f5f4ef;color:#555;cursor:pointer;
+  max-width:100px;
+}
+
+/* ── Status bar ── */
+.sbar{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  padding:6px 10px;display:flex;gap:8px;align-items:center;
+  font-size:10px;color:#888;flex-wrap:wrap;flex-shrink:0;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:#5c9e2c;flex-shrink:0;display:inline-block}
+.dot.w{background:#d08c10}
+
+/* ── Placeholder ── */
+.placeholder{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;text-align:center;
+}
+.ph-ico{font-size:34px;opacity:.35}
+.placeholder p{font-size:13px;line-height:1.7;color:#bbb}
+</style>
 </head>
 <body>
 
-<header>
-  <h1>HP Dashcam Viewer</h1>
-  <span class="sub">Dual camera · NMEA GPS sync · Linux compatible</span>
-  <span class="badge">Map © OpenStreetMap contributors · © CARTO</span>
-</header>
+<div class="app">
 
-<div class="shell">
-
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sb-top">
-      <div class="folder-wrap">
-        <input type="file" id="folder-input" webkitdirectory multiple>
-        <label for="folder-input">&#128193; Select dashcam folder</label>
-      </div>
-      <div class="folder-path" id="folder-path"></div>
+  <!-- ── Top: video row ── -->
+  <div class="video-row" id="video-row">
+    <div class="vcam"><span class="vcam-lbl">FRONT</span><video id="vf" controls preload="metadata"></video></div>
+    <div class="vcam" id="vcam-rear">
+      <span class="vcam-lbl">REAR</span>
+      <video id="vr" controls preload="metadata"></video>
+      <div id="vcam-rear-blank" class="vcam-blank" style="display:none">No rear recording</div>
     </div>
-    <div class="sb-label">Recordings</div>
-    <div class="rec-list" id="rec-list">
-      <div class="rec-empty">Select the dashcam parent folder above.<br>Recordings in F/ will be listed here.</div>
-    </div>
-  </aside>
+  </div>
 
-  <!-- Main -->
-  <div class="main">
+  <!-- ── Bottom: lower-row + sbar ── -->
+  <div class="lower-section">
 
-    <div class="placeholder" id="placeholder">
-      <div class="ph-ico">&#127909;</div>
-      <p>Double-click a recording<br>from the list to begin</p>
-    </div>
+    <div class="lower-row" id="lower-row">
 
-    <div class="video-row" id="video-row" style="display:none">
-      <div class="vcam"><span class="vcam-lbl">FRONT</span><video id="vf" controls preload="metadata"></video></div>
-      <div class="vcam" id="vcam-rear">
-        <span class="vcam-lbl">REAR</span>
-        <video id="vr" controls preload="metadata"></video>
-        <div id="vcam-rear-blank" class="vcam-blank" style="display:none">No rear recording</div>
-      </div>
-    </div>
-
-    <div class="lower-row" id="lower-row" style="display:none">
-      <div id="map"></div>
-
-      <div class="telem" id="telem">
-        <div class="telem-head">
-          <span class="telem-title">Telemetry</span>
-          <div class="telem-ctrls">
-            <select id="sel-tz" title="Time zone">
-              <option value="-12">UTC−12</option>
-              <option value="-11">UTC−11</option>
-              <option value="-10">UTC−10 HST</option>
-              <option value="-9">UTC−9 AKST</option>
-              <option value="-8">UTC−8 PST</option>
-              <option value="-7">UTC−7 MST</option>
-              <option value="-6">UTC−6 CST</option>
-              <option value="-5">UTC−5 EST</option>
-              <option value="-4">UTC−4 AST</option>
-              <option value="-3">UTC−3</option>
-              <option value="-2">UTC−2</option>
-              <option value="-1">UTC−1</option>
-              <option value="0">UTC</option>
-              <option value="1">UTC+1 BST</option>
-              <option value="2">UTC+2 CEST</option>
-              <option value="3">UTC+3 MSK</option>
-              <option value="4">UTC+4 GST</option>
-              <option value="5">UTC+5 PKT</option>
-              <option value="5.5">UTC+5:30 IST</option>
-              <option value="6">UTC+6 BST</option>
-              <option value="7">UTC+7 ICT</option>
-              <option value="8">UTC+8 CST</option>
-              <option value="9">UTC+9 JST</option>
-              <option value="9.5">UTC+9:30 ACST</option>
-              <option value="10">UTC+10 AEST</option>
-              <option value="11">UTC+11</option>
-              <option value="12">UTC+12 NZST</option>
-            </select>
-            <select id="sel-spd" title="Speed unit">
-              <option value="kmh">km/h</option>
-              <option value="mph" selected>mph</option>
-              <option value="kn">kn</option>
-            </select>
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sb-top">
+          <div class="folder-wrap">
+            <input type="file" id="folder-input" webkitdirectory multiple>
+            <label for="folder-input">&#128193; Select folder</label>
           </div>
+          <div class="folder-path" id="folder-path"></div>
         </div>
-
-        <div class="tcard">
-          <div class="lbl">Speed</div>
-          <span class="val" id="tel-spd">—</span>
-          <span class="unt" id="tel-spd-u"> km/h</span>
+        <div class="sb-label">Recordings</div>
+        <div class="rec-list" id="rec-list">
+          <div class="rec-empty">Select the dashcam parent folder above.<br>Recordings in F/ will be listed here.</div>
         </div>
+      </aside>
 
-        <div class="tcard">
-          <div class="lbl" id="tel-time-lbl">Time (UTC)</div>
-          <div class="val" style="font-size:14px" id="tel-time">—</div>
-        </div>
-
-        <div class="tg2">
-          <div class="tcard sm"><div class="lbl">Latitude</div><div class="val" id="tel-lat">—</div></div>
-          <div class="tcard sm"><div class="lbl">Longitude</div><div class="val" id="tel-lon">—</div></div>
-        </div>
-
-        <div class="tg2">
-          <div class="tcard sm"><div class="lbl">Altitude</div><div class="val" id="tel-alt">—</div><span class="unt"> m</span></div>
-          <div class="tcard sm"><div class="lbl">Satellites</div><div class="val" id="tel-sat">—</div></div>
-        </div>
-
-        <div class="tg2">
-          <div class="tcard sm"><div class="lbl">HDOP</div><div class="val" id="tel-hdop">—</div></div>
-          <div class="tcard sm"><div class="lbl">Heading</div><div class="val" id="tel-crs">—</div><span class="unt">°</span></div>
+      <!-- Map -->
+      <div id="map">
+        <div class="placeholder" id="placeholder">
+          <div class="ph-ico">&#127909;</div>
+          <p>Double-click a recording<br>from the list to begin</p>
         </div>
       </div>
-    </div>
 
-    <div class="sbar" id="sbar" style="display:none">
+      <!-- Telemetry -->
+      <div class="telem" id="telem">
+        <div class="telem-title">Telemetry</div>
+
+        <div class="trow">
+          <span class="lbl">Time zone</span>
+          <select id="sel-tz" title="Time zone">
+            <option value="-12">UTC−12</option>
+            <option value="-11">UTC−11</option>
+            <option value="-10">UTC−10 HST</option>
+            <option value="-9">UTC−9 AKST</option>
+            <option value="-8">UTC−8 PST</option>
+            <option value="-7">UTC−7 MST</option>
+            <option value="-6">UTC−6 CST</option>
+            <option value="-5">UTC−5 EST</option>
+            <option value="-4">UTC−4 AST</option>
+            <option value="-3">UTC−3</option>
+            <option value="-2">UTC−2</option>
+            <option value="-1">UTC−1</option>
+            <option value="0">UTC</option>
+            <option value="1">UTC+1 BST</option>
+            <option value="2">UTC+2 CEST</option>
+            <option value="3">UTC+3 MSK</option>
+            <option value="4">UTC+4 GST</option>
+            <option value="5">UTC+5 PKT</option>
+            <option value="5.5">UTC+5:30 IST</option>
+            <option value="6">UTC+6 BST</option>
+            <option value="7">UTC+7 ICT</option>
+            <option value="8">UTC+8 CST</option>
+            <option value="9">UTC+9 JST</option>
+            <option value="9.5">UTC+9:30 ACST</option>
+            <option value="10">UTC+10 AEST</option>
+            <option value="11">UTC+11</option>
+            <option value="12">UTC+12 NZST</option>
+          </select>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Speed unit</span>
+          <select id="sel-spd" title="Speed unit">
+            <option value="kmh">km/h</option>
+            <option value="mph" selected>mph</option>
+            <option value="kn">kn</option>
+          </select>
+        </div>
+
+        <div class="trow">
+          <span class="lbl" id="tel-time-lbl">Time</span>
+          <span class="val" id="tel-time">—</span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Speed</span>
+          <span class="val big"><span id="tel-spd">—</span><span id="tel-spd-u" style="font-size:10px;color:#aaa"> mph</span></span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Latitude</span>
+          <span class="val" id="tel-lat">—</span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Longitude</span>
+          <span class="val" id="tel-lon">—</span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Altitude</span>
+          <span class="val"><span id="tel-alt">—</span><span style="font-size:10px;color:#aaa"> m</span></span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Satellites</span>
+          <span class="val" id="tel-sat">—</span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">HDOP</span>
+          <span class="val" id="tel-hdop">—</span>
+        </div>
+
+        <div class="trow">
+          <span class="lbl">Heading</span>
+          <span class="val"><span id="tel-crs">—</span><span style="font-size:10px;color:#aaa">°</span></span>
+        </div>
+      </div>
+
+    </div><!-- /.lower-row -->
+
+    <div class="sbar" id="sbar">
       <span class="dot" id="sdot"></span>
       <span id="smsg">Ready</span>
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
-      <span id="slocation"></span>
-      <label id="lbl-advance">
+      <span id="slocation" style="color:#aaa;font-style:italic"></span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none">
         <input type="checkbox" id="chk-advance" checked style="cursor:pointer"> Auto-advance
       </label>
     </div>
 
-  </div><!-- /.main -->
-</div><!-- /.shell -->
+  </div><!-- /.lower-section -->
 
-<!--script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script-->
-<script src="leaflet.js"></script>
+</div><!-- /.app -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 /* ═══ State ══════════════════════════════════════════════ */
 var allFiles  = {};
@@ -425,18 +561,18 @@ function initMap() {
 }
 
 function syncMapHeight() {
-  var telem = document.getElementById('telem');
-  var mapEl  = document.getElementById('map');
-  if (!telem || !mapEl) return;
-  var h = telem.getBoundingClientRect().height;
+  var lowerRow = document.getElementById('lower-row');
+  var mapEl    = document.getElementById('map');
+  if (!lowerRow || !mapEl) return;
+  var h = lowerRow.getBoundingClientRect().height;
   if (h > 0) {
-    mapEl.style.height = (h - 8) + 'px';
+    mapEl.style.height = h + 'px';
     if (leafMap) leafMap.invalidateSize();
   }
 }
 
 if (window.ResizeObserver) {
-  new ResizeObserver(syncMapHeight).observe(document.getElementById('telem'));
+  new ResizeObserver(syncMapHeight).observe(document.getElementById('lower-row'));
 }
 
 /* ═══ Telemetry update ═══════════════════════════════════ */
@@ -559,10 +695,7 @@ vF.addEventListener('ended', function() {
 
 /* ═══ Show player ════════════════════════════════════════ */
 function showPlayer() {
-  document.getElementById('placeholder').style.display  = 'none';
-  document.getElementById('video-row').style.display    = 'grid';
-  document.getElementById('lower-row').style.display    = hasGPS ? 'grid' : 'none';
-  document.getElementById('sbar').style.display         = 'flex';
+  document.getElementById('placeholder').style.display = 'none';
   if (hasGPS) requestAnimationFrame(function(){ setTimeout(syncMapHeight, 60); });
 }
 
