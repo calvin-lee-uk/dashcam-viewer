@@ -64,6 +64,13 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
 .ri-time{font-size:12px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:1em;}
 .rec-item.active .ri-date{color:#1a6ea8}
 .rec-item.active .ri-time{color:#5a9fd4}
+.ri-badges{margin-top:3px;display:flex;gap:3px}
+.ri-badge{
+  font-size:9px;font-weight:500;letter-spacing:.04em;
+  padding:1px 5px;border-radius:3px;
+  background:#eef4ea;color:#5c9e2c;border:1px solid #c8e0b8;
+}
+.ri-badge.miss{background:#f5f4ef;color:#bbb;border-color:#e2e2dd}
 
 /* ── Main ── */
 .main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:10px;gap:8px}
@@ -154,7 +161,7 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
 
     <div class="video-row" id="video-row" style="display:none">
       <div class="vcam"><span class="vcam-lbl">FRONT</span><video id="vf" controls preload="metadata"></video></div>
-      <div class="vcam"><span class="vcam-lbl">REAR</span><video id="vr" controls preload="metadata"></video></div>
+      <div class="vcam" id="vcam-rear"><span class="vcam-lbl">REAR</span><video id="vr" controls preload="metadata"></video></div>
     </div>
 
     <div class="lower-row" id="lower-row" style="display:none">
@@ -249,6 +256,7 @@ var ggaMap    = {};
 var startUTC  = 0;
 var leafMap   = null, gpsMarker = null;
 var syncLock  = false;
+var hasRear   = false, hasGPS = false;
 
 var vF = document.getElementById('vf');
 var vR = document.getElementById('vr');
@@ -275,7 +283,13 @@ function scanRecordings() {
   var re = new RegExp('^' + escRe(rootName) + '\\/F\\/HPIM(\\d{6})-(\\d{6})F\\.MOV$', 'i');
   for (var path in allFiles) {
     var m = path.match(re);
-    if (m) recs.push({ d: m[1], t: m[2] });
+    if (m) {
+      var d = m[1], t = m[2], base = 'HPIM' + d + '-' + t;
+      var pR = rootName + '/R/' + base + 'R.MOV';
+      var pN = rootName + '/F/' + base + 'F.NMEA';
+      if (!allFiles[pN]) pN = rootName + '/' + base + 'F.NMEA';
+      recs.push({ d: d, t: t, hasR: !!allFiles[pR], hasN: !!allFiles[pN] });
+    }
   }
   recs.sort(function(a, b){ return (a.d + a.t) < (b.d + b.t) ? -1 : 1; });
   buildList(recs);
@@ -293,14 +307,18 @@ function buildList(recs) {
     return;
   }
   listEl.innerHTML = '';
-  recs.forEach(function(r, idx) {
+  recs.forEach(function(r) {
     var yy = r.d.slice(0,2), mo = r.d.slice(2,4), dd = r.d.slice(4,6);
     var hh = r.t.slice(0,2), mm = r.t.slice(2,4), ss = r.t.slice(4,6);
     var el = document.createElement('div');
     el.className = 'rec-item';
     el.innerHTML =
       '<div class="ri-date">20' + yy + '-' + mo + '-' + dd + '</div>' +
-      '<div class="ri-time">' + hh + ':' + mm + ':' + ss + '</div>';
+      '<div class="ri-time">' + hh + ':' + mm + ':' + ss + '</div>' +
+      '<div class="ri-badges">' +
+        '<span class="ri-badge' + (r.hasR ? '' : ' miss') + '">REAR</span>' +
+        '<span class="ri-badge' + (r.hasN ? '' : ' miss') + '">GPS</span>' +
+      '</div>';
     el.addEventListener('click', function() {
       document.querySelectorAll('.rec-item').forEach(function(x){ x.classList.remove('active'); });
       el.classList.add('active');
@@ -316,47 +334,73 @@ function buildList(recs) {
 
 /* ═══ Load recording ══════════════════════════════════════ */
 function loadRecording(d, t) {
-  var base  = 'HPIM' + d + '-' + t;
-  var pF    = rootName + '/F/' + base + 'F.MOV';
-  var pR    = rootName + '/R/' + base + 'R.MOV';
-  var pN    = rootName + '/F/' + base + 'F.NMEA';
+  var base = 'HPIM' + d + '-' + t;
+  var pF   = rootName + '/F/' + base + 'F.MOV';
+  var pR   = rootName + '/R/' + base + 'R.MOV';
+  var pN   = rootName + '/F/' + base + 'F.NMEA';
   if (!allFiles[pN]) pN = rootName + '/' + base + 'F.NMEA';
 
-  var missing = [];
-  if (!allFiles[pF]) missing.push('Front: F/' + base + 'F.MOV');
-  if (!allFiles[pR]) missing.push('Rear:  R/' + base + 'R.MOV');
-  if (!allFiles[pN]) missing.push('GPS:   F/' + base + 'F.NMEA');
-
-  if (missing.length) {
-    alert('Files not found inside selected folder:\n\n' + missing.join('\n') +
-          '\n\nCheck that F/ and R/ subfolders are inside the selected parent folder.');
+  /* Front is the only hard requirement */
+  if (!allFiles[pF]) {
+    alert('Front video not found:\n  F/' + base + 'F.MOV\n\nCheck the selected folder.');
     return;
   }
 
-  if (vF.src) URL.revokeObjectURL(vF.src);
-  if (vR.src) URL.revokeObjectURL(vR.src);
-  vF.src = URL.createObjectURL(allFiles[pF]);
-  vR.src = URL.createObjectURL(allFiles[pR]);
+  hasRear = !!allFiles[pR];
+  hasGPS  = !!allFiles[pN];
 
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var parsed = parseNMEA(e.target.result);
-    gpsPoints  = parsed.rmc;
-    ggaMap     = parsed.gga;
-    if (!gpsPoints.length) {
-      setStatus(true, 'No valid GPS fixes found in NMEA file', '');
-      return;
-    }
-    startUTC = gpsPoints[0].utcSec;
+  /* Reset state */
+  gpsPoints = []; ggaMap = {}; startUTC = 0;
+  if (vF.src) { URL.revokeObjectURL(vF.src); vF.src = ''; }
+  if (vR.src) { URL.revokeObjectURL(vR.src); vR.src = ''; }
+
+  /* Front video — always */
+  vF.src = URL.createObjectURL(allFiles[pF]);
+
+  /* Rear video — optional */
+  var rearWrap = document.getElementById('vcam-rear');
+  var videoRow = document.getElementById('video-row');
+  if (hasRear) {
+    vR.src = URL.createObjectURL(allFiles[pR]);
+    rearWrap.style.display = '';
+    videoRow.style.gridTemplateColumns = '1fr 1fr';
+  } else {
+    rearWrap.style.display = 'none';
+    videoRow.style.gridTemplateColumns = '1fr';
+  }
+
+  /* NMEA / GPS — optional */
+  if (hasGPS) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var parsed = parseNMEA(e.target.result);
+      gpsPoints  = parsed.rmc;
+      ggaMap     = parsed.gga;
+      showPlayer();
+      if (!gpsPoints.length) {
+        setStatus(true, 'No valid GPS fixes in NMEA file', availNote());
+        return;
+      }
+      startUTC = gpsPoints[0].utcSec;
+      initMap();
+      var dur = gpsPoints[gpsPoints.length - 1].utcSec - startUTC;
+      setStatus(false,
+        gpsPoints.length + ' GPS fixes \u00b7 ' + availNote(),
+        'Duration ' + Math.round(dur) + 's \u00b7 Start UTC ' + fmtTime(startUTC, 0)
+      );
+    };
+    reader.readAsText(allFiles[pN]);
+  } else {
     showPlayer();
-    initMap();
-    var dur = gpsPoints[gpsPoints.length - 1].utcSec - startUTC;
-    setStatus(false,
-      gpsPoints.length + ' GPS fixes loaded',
-      'Duration ' + Math.round(dur) + 's \u00b7 Start UTC ' + fmtTime(startUTC, 0)
-    );
-  };
-  reader.readAsText(allFiles[pN]);
+    setStatus(false, 'Playing \u00b7 ' + availNote(), 'No GPS log \u2014 map unavailable');
+  }
+}
+
+function availNote() {
+  var parts = ['Front'];
+  if (hasRear) parts.push('Rear'); else parts.push('(no rear)');
+  if (hasGPS)  parts.push('GPS');  else parts.push('(no GPS)');
+  return parts.join(' \u00b7 ');
 }
 
 /* ═══ NMEA parser ════════════════════════════════════════ */
@@ -531,22 +575,24 @@ function syncTo(other, t) {
     setTimeout(function(){ syncLock = false; }, 150);
   }
 }
-vF.addEventListener('play',       function(){ vR.play().catch(function(){}); });
-vF.addEventListener('pause',      function(){ vR.pause(); });
-vF.addEventListener('seeked',     function(){ syncTo(vR, vF.currentTime); });
-vR.addEventListener('play',       function(){ vF.play().catch(function(){}); });
-vR.addEventListener('pause',      function(){ vF.pause(); });
-vR.addEventListener('seeked',     function(){ syncTo(vF, vR.currentTime); });
-vF.addEventListener('timeupdate', function(){ syncTo(vR, vF.currentTime); updateTelemetry(vF.currentTime); });
+vF.addEventListener('play',       function(){ if (hasRear) vR.play().catch(function(){}); });
+vF.addEventListener('pause',      function(){ if (hasRear) vR.pause(); });
+vF.addEventListener('seeked',     function(){ if (hasRear) syncTo(vR, vF.currentTime); });
+vR.addEventListener('play',       function(){ if (hasRear) vF.play().catch(function(){}); });
+vR.addEventListener('pause',      function(){ if (hasRear) vF.pause(); });
+vR.addEventListener('seeked',     function(){ if (hasRear) syncTo(vF, vR.currentTime); });
+vF.addEventListener('timeupdate', function(){
+  if (hasRear) syncTo(vR, vF.currentTime);
+  if (hasGPS)  updateTelemetry(vF.currentTime);
+});
 
 /* ═══ Show player ════════════════════════════════════════ */
 function showPlayer() {
   document.getElementById('placeholder').style.display  = 'none';
   document.getElementById('video-row').style.display    = 'grid';
-  document.getElementById('lower-row').style.display    = 'grid';
+  document.getElementById('lower-row').style.display    = hasGPS ? 'grid' : 'none';
   document.getElementById('sbar').style.display         = 'flex';
-  /* wait one frame for layout to settle, then sync map height */
-  requestAnimationFrame(function(){ setTimeout(syncMapHeight, 60); });
+  if (hasGPS) requestAnimationFrame(function(){ setTimeout(syncMapHeight, 60); });
 }
 
 function setStatus(warn, msg, detail) {
