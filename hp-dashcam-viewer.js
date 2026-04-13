@@ -162,6 +162,7 @@ function loadRecording(d, t) {
         return;
       }
       startUTC = gpsPoints[0].utcSec;
+      applyTimezoneFromFilename(t, startUTC);
       initMap();
       var dur = gpsPoints[gpsPoints.length - 1].utcSec - startUTC;
       setStatus(false,
@@ -184,6 +185,34 @@ function availNote() {
   return parts.join(' \u00b7 ');
 }
 
+/* ═══ Timezone from filename ══════════════════════════════
+   The dashcam writes local time into the filename (hhmmss).
+   The first GPS fix gives us UTC.  Their difference is the offset.
+══════════════════════════════════════════════════════════ */
+function applyTimezoneFromFilename(t, utcSec) {
+  /* t = 'hhmmss' string from filename */
+  var hh = parseInt(t.slice(0, 2), 10);
+  var mm = parseInt(t.slice(2, 4), 10);
+  var ss = parseInt(t.slice(4, 6), 10);
+  var localSec = hh * 3600 + mm * 60 + ss;
+
+  var utcMidnight = utcSec % 86400;                 /* GPS UTC, seconds into day */
+  var diffHours   = (localSec - utcMidnight) / 3600;
+
+  /* normalise to −12 … +14 (crossing midnight gives ±24 artefacts) */
+  if (diffHours >  14) diffHours -= 24;
+  if (diffHours < -12) diffHours += 24;
+
+  /* snap to nearest option in sel-tz */
+  var sel  = document.getElementById('sel-tz');
+  var best = 0, bestDist = Infinity;
+  for (var i = 0; i < sel.options.length; i++) {
+    var d = Math.abs(parseFloat(sel.options[i].value) - diffHours);
+    if (d < bestDist) { bestDist = d; best = i; }
+  }
+  sel.selectedIndex = best;
+}
+
 /* ═══ Reverse geocode (Nominatim, called once per recording) ═══ */
 function reverseGeocode(lat, lon) {
   var locEl = document.getElementById('slocation');
@@ -201,6 +230,22 @@ function reverseGeocode(lat, lon) {
       if (postcode) parts.push(postcode);
       if (town)     parts.push(town);
       if (parts.length) locEl.textContent = '\u00b7 ' + parts.join(', ');
+
+      /* UK uses mph — switch automatically */
+      var selSpd = document.getElementById('sel-spd');
+      if (['uk','gb'].includes((a.country_code || '').toLowerCase())) {
+        if (selSpd.value !== 'mph') {
+          selSpd.value = 'mph';
+          /* redraw speedo with the new unit at current speed */
+          updateTelemetry(vF.currentTime || 0);
+        }
+      } else {
+        if (selSpd.value !== 'kmh') {
+          selSpd.value = 'kmh';
+          /* redraw speedo with the new unit at current speed */
+          updateTelemetry(vF.currentTime || 0);
+        }
+      }
     })
     .catch(function(){ /* silently ignore — network may be unavailable */ });
 }
