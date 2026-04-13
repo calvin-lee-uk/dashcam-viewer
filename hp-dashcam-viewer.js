@@ -20,6 +20,11 @@ var recsList  = [], activeRecIdx = -1;
     if (d < bestDist) { bestDist = d; best = i; }
   }
   if (best !== null) sel.selectedIndex = best;
+  /* draw idle speedo once layout is ready */
+  requestAnimationFrame(function(){
+    drawSpeedo(0, document.getElementById('sel-spd').value);
+    drawCompass(0);
+  });
 })();
 
 var vF = document.getElementById('vf');
@@ -328,6 +333,7 @@ function updateTelemetry(videoTime) {
   else                     { spd = p.speedKnots * 1.852;   spdLbl = 'km/h';}
   document.getElementById('tel-spd').textContent   = spd.toFixed(1);
   document.getElementById('tel-spd-u').textContent = ' ' + spdLbl;
+  drawSpeedo(spd, unit);
 
   /* time + timezone */
   var tzOff = parseFloat(document.getElementById('sel-tz').value) || 0;
@@ -338,6 +344,7 @@ function updateTelemetry(videoTime) {
   document.getElementById('tel-lat').textContent = p.lat.toFixed(5) + '\u00b0';
   document.getElementById('tel-lon').textContent = p.lon.toFixed(5) + '\u00b0';
   document.getElementById('tel-crs').textContent = Math.round(p.course);
+  drawCompass(p.course);
 
   /* GGA extras */
   var g = ggaMap[Math.round(sec)];
@@ -346,6 +353,226 @@ function updateTelemetry(videoTime) {
     document.getElementById('tel-sat').textContent  = g.sats;
     document.getElementById('tel-hdop').textContent = g.hdop.toFixed(1);
   }
+}
+
+/* ═══ Speedometer ════════════════════════════════════════ */
+function drawSpeedo(spd, unit) {
+  var canvas = document.getElementById('speedo');
+  if (!canvas) return;
+
+  var dpr = window.devicePixelRatio || 1;
+  var W   = canvas.parentElement.clientWidth - 16;
+  canvas.width  = W * dpr;
+  canvas.height = W * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = W + 'px';
+
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, W);
+
+  /* Gauge pivot = bezel centre = canvas centre */
+  var cx = W / 2, cy = W / 2;
+  var Rb = W * 0.46;   /* bezel radius — matches compass */
+
+  /* Arc track width; outer edge of track sits flush with bezel inner edge.
+     track outer edge = Rg + tw/2 = Rb  →  Rg = Rb - tw/2
+     tw = Rg * 0.20  →  Rg + Rg*0.10 = Rb  →  Rg = Rb / 1.10            */
+  var Rg  = Rb / 1.10;
+  var tw  = Rg * 0.20;   /* track stroke width */
+
+  var startA = Math.PI * 7 / 6;    /* 210° */
+  var endA   = Math.PI * 11 / 6;   /* 330° */
+  var sweep  = (endA - startA + 2 * Math.PI) % (2 * Math.PI); /* 240° */
+
+  var maxSpd  = unit === 'mph' ? 100 : unit === 'kn' ? 87 : 160;
+  var frac    = Math.min(Math.max(spd / maxSpd, 0), 1);
+  var needleA = startA + frac * sweep;
+
+  var tickCount = unit === 'mph' ? 10 : unit === 'kn' ? 9 : 8;
+  var tickStep  = unit === 'mph' ? 10 : unit === 'kn' ? 10 : 20;
+
+  /* ── outer bezel circle ── */
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rb, 0, Math.PI * 2);
+  ctx.strokeStyle = '#d0cfc8';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  /* ── gauge background track — centred on same point, flush with bezel ── */
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rg, startA, endA, false);
+  ctx.strokeStyle = '#e2e2dd';
+  ctx.lineWidth   = tw;
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+
+  /* ── gauge value arc ── */
+  var arcColor = frac < 0.6 ? '#5c9e2c' : frac < 0.8 ? '#d08c10' : '#c84820';
+  if (frac > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, Rg, startA, needleA, false);
+    ctx.strokeStyle = arcColor;
+    ctx.lineWidth   = tw;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+  }
+
+  /* ── tick marks & labels (along the inner face of the arc) ── */
+  for (var i = 0; i <= tickCount; i++) {
+    var tv    = i * tickStep;
+    var tf    = Math.min(tv / maxSpd, 1);
+    var ta    = startA + tf * sweep;
+    var major = (i % 2 === 0);
+    var outer = Rg - tw * 0.5;           /* inner edge of track */
+    var inner = major ? outer - Rg * 0.12 : outer - Rg * 0.07;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ta) * inner, cy + Math.sin(ta) * inner);
+    ctx.lineTo(cx + Math.cos(ta) * outer, cy + Math.sin(ta) * outer);
+    ctx.strokeStyle = major ? '#999' : '#bbb';
+    ctx.lineWidth   = major ? 1.5 : 0.8;
+    ctx.lineCap     = 'square';
+    ctx.stroke();
+
+    if (major) {
+      var lr = inner - Rg * 0.13;
+      ctx.fillStyle    = '#aaa';
+      ctx.font         = 'bold ' + Math.round(Rg * 0.17) + 'px system-ui,Arial';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tv, cx + Math.cos(ta) * lr, cy + Math.sin(ta) * lr);
+    }
+  }
+
+  /* ── needle (from centre outward) ── */
+  var nLen  = Rg * 0.80;
+  var nBack = Rg * 0.15;
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(needleA) * nBack, cy - Math.sin(needleA) * nBack);
+  ctx.lineTo(cx + Math.cos(needleA) * nLen,  cy + Math.sin(needleA) * nLen);
+  ctx.strokeStyle = '#e05a30';
+  ctx.lineWidth   = 2;
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+
+  /* ── centre cap ── */
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rg * 0.09, 0, Math.PI * 2);
+  ctx.fillStyle = '#e05a30';
+  ctx.fill();
+
+  /* ── speed readout in the lower half of the circle ── */
+  ctx.fillStyle    = '#1a1a1a';
+  ctx.font         = 'bold ' + Math.round(Rg * 0.40) + 'px system-ui,Arial';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(Math.round(spd), cx, cy + Rg * 0.30);
+
+  ctx.fillStyle    = '#aaa';
+  ctx.font         = Math.round(Rg * 0.18) + 'px system-ui,Arial';
+  ctx.fillText(unit, cx, cy + Rg * 0.55);
+}
+
+/* ═══ Compass ════════════════════════════════════════════ */
+function drawCompass(course) {
+  var canvas = document.getElementById('compass');
+  if (!canvas) return;
+
+  var dpr = window.devicePixelRatio || 1;
+  var W   = canvas.parentElement.clientWidth - 16;
+  canvas.width  = W * dpr;
+  canvas.height = W * dpr;          /* square */
+  canvas.style.width  = W + 'px';
+  canvas.style.height = W + 'px';
+
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, W);
+
+  var cx = W / 2, cy = W / 2;
+  var R  = W * 0.46;
+  var deg = course || 0;
+
+  /* ── outer bezel ── */
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#d0cfc8';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  /* ── tick marks every 5°, long every 30° ── */
+  for (var a = 0; a < 360; a += 5) {
+    var rad   = (a - 90) * Math.PI / 180;
+    var major = (a % 30 === 0);
+    var inner = major ? R * 0.80 : R * 0.88;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(rad) * inner, cy + Math.sin(rad) * inner);
+    ctx.lineTo(cx + Math.cos(rad) * R,     cy + Math.sin(rad) * R);
+    ctx.strokeStyle = major ? '#aaa' : '#ddd';
+    ctx.lineWidth   = major ? 1.2 : 0.6;
+    ctx.stroke();
+  }
+
+  /* ── cardinal & intercardinal labels ── */
+  var labels = [
+    { t: 'N',  a:   0, sz: R * 0.26, bold: true,  color: '#c84820' },
+    { t: 'NE', a:  45, sz: R * 0.16, bold: false, color: '#888' },
+    { t: 'E',  a:  90, sz: R * 0.22, bold: true,  color: '#555' },
+    { t: 'SE', a: 135, sz: R * 0.16, bold: false, color: '#888' },
+    { t: 'S',  a: 180, sz: R * 0.22, bold: true,  color: '#555' },
+    { t: 'SW', a: 225, sz: R * 0.16, bold: false, color: '#888' },
+    { t: 'W',  a: 270, sz: R * 0.22, bold: true,  color: '#555' },
+    { t: 'NW', a: 315, sz: R * 0.16, bold: false, color: '#888' }
+  ];
+  labels.forEach(function(lb) {
+    var rad = (lb.a - 90) * Math.PI / 180;
+    var lr  = R * 0.65;
+    ctx.fillStyle    = lb.color;
+    ctx.font         = (lb.bold ? 'bold ' : '') + Math.round(lb.sz) + 'px system-ui,Arial';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(lb.t, cx + Math.cos(rad) * lr, cy + Math.sin(rad) * lr);
+  });
+
+  /* ── needle — red North tip, grey South tail ── */
+  var nLen = R * 0.50, sLen = R * 0.30, hw = R * 0.07;
+  var nRad = (deg - 90) * Math.PI / 180; /* North tip direction */
+  var sRad = nRad + Math.PI;              /* South tail direction */
+  var px   = Math.cos(nRad), py = Math.sin(nRad);  /* unit vector North */
+  var sx   = Math.cos(sRad), sy = Math.sin(sRad);  /* unit vector South */
+  /* perpendicular for arrowhead width */
+  var perpx = -py, perpy = px;
+
+  /* North (red) arrowhead */
+  ctx.beginPath();
+  ctx.moveTo(cx + px * nLen, cy + py * nLen);
+  ctx.lineTo(cx + perpx * hw, cy + perpy * hw);
+  ctx.lineTo(cx - perpx * hw, cy - perpy * hw);
+  ctx.closePath();
+  ctx.fillStyle = '#c84820';
+  ctx.fill();
+
+  /* South (grey) tail */
+  ctx.beginPath();
+  ctx.moveTo(cx + sx * sLen, cy + sy * sLen);
+  ctx.lineTo(cx + perpx * hw, cy + perpy * hw);
+  ctx.lineTo(cx - perpx * hw, cy - perpy * hw);
+  ctx.closePath();
+  ctx.fillStyle = '#ccc';
+  ctx.fill();
+
+  /* ── centre cap ── */
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.07, 0, Math.PI * 2);
+  ctx.fillStyle = '#888';
+  ctx.fill();
+
+  /* ── heading readout ── */
+  ctx.fillStyle    = '#1a1a1a';
+  ctx.font         = 'bold ' + Math.round(R * 0.22) + 'px system-ui,Arial';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(Math.round(deg) + '\u00b0', cx, cy);
 }
 
 function fmtTime(utcSec, offsetHr) {
@@ -361,7 +588,10 @@ function tzLbl(off) {
 function pad(n){ return String(Math.floor(n)).padStart(2, '0'); }
 
 document.getElementById('sel-tz').addEventListener('change',  function(){ updateTelemetry(vF.currentTime || 0); });
-document.getElementById('sel-spd').addEventListener('change', function(){ updateTelemetry(vF.currentTime || 0); });
+document.getElementById('sel-spd').addEventListener('change', function(){
+  updateTelemetry(vF.currentTime || 0);
+  if (!gpsPoints.length) drawSpeedo(0, document.getElementById('sel-spd').value);
+});
 
 /* ═══ Video sync ═════════════════════════════════════════
    syncTarget tracks which video WE just programmatically seeked.

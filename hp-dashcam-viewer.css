@@ -63,7 +63,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,
 .rec-item:hover{background:#f5f4ef}
 .rec-item.active{background:#e5f0fa}
 .ri-date{font-size:11px;font-variant-numeric:tabular-nums;color:#1a1a1a;display:inline;padding-right:.6em}
-.ri-wkday{font-size:11px;/*color:#999;*/display:inline}
+.ri-wkday{font-size:11px;color:#999;display:inline}
 .ri-time{font-size:11px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:.6em}
 .rec-item.active .ri-date{color:#1a6ea8}
 .rec-item.active .ri-time{color:#5a9fd4}
@@ -110,8 +110,9 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,
 }
 .dot{width:6px;height:6px;border-radius:50%;background:#5c9e2c;flex-shrink:0;display:inline-block}
 .dot.w{background:#d08c10}
-/*.slocation { color:#aaa;font-style:italic; } */
-.lbl-advance { margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none; }
+/*#slocation {color:#aaa;font-style:italic}*/
+.lbl-advance {margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none}
+#speedo, #compass {display:block;width:100%;margin-top:6px}
 
 /* ── Placeholder ── */
 .placeholder{

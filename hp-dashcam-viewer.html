@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HP Dashcam Viewer</title>
-<!-- link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/ -->
-<link rel="stylesheet" href="leaflet.css"/>
-<link rel="stylesheet" href="hp-dashcam-viewer.css"/>
+<!--link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/-->
+<link rel="stylesheet" href="leaflet.css">
+<link rel="stylesheet" href="hp-dashcam-viewer.css">
 </head>
 <body>
 
@@ -135,6 +135,9 @@
           <span class="lbl">Heading</span>
           <span class="val"><span id="tel-crs">—</span><span style="font-size:10px;color:#aaa">°</span></span>
         </div>
+
+        <canvas id="speedo" style="display:block;width:100%;margin-top:6px"></canvas>
+        <canvas id="compass" style="display:block;width:100%;margin-top:6px"></canvas>
       </div>
 
     </div><!-- /.lower-row -->
@@ -144,7 +147,7 @@
       <span id="smsg">Ready</span>
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
-      <span id="slocation" class="slocation"></span>
+      <span id="slocation"></span>
       <label class="lbl-advance">
         <input type="checkbox" id="chk-advance" checked style="cursor:pointer"> Auto-advance
       </label>
