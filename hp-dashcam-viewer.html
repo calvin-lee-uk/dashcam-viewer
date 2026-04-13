@@ -92,6 +92,17 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
   font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px;letter-spacing:.05em;
 }
 .vcam video{width:100%;display:block}
+.vcam-blank{
+  width:100%;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#555;letter-spacing:.03em;
+  background:#111;
+}
+.vcam-blank{
+  width:100%;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#555;letter-spacing:.03em;
+}
 
 /* lower */
 .lower-row{display:grid;grid-template-columns:1fr 232px;gap:8px;flex:1;min-height:0}
@@ -161,7 +172,11 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
 
     <div class="video-row" id="video-row" style="display:none">
       <div class="vcam"><span class="vcam-lbl">FRONT</span><video id="vf" controls preload="metadata"></video></div>
-      <div class="vcam" id="vcam-rear"><span class="vcam-lbl">REAR</span><video id="vr" controls preload="metadata"></video></div>
+      <div class="vcam" id="vcam-rear">
+        <span class="vcam-lbl">REAR</span>
+        <video id="vr" controls preload="metadata"></video>
+        <div id="vcam-rear-blank" class="vcam-blank" style="display:none">No rear recording</div>
+      </div>
     </div>
 
     <div class="lower-row" id="lower-row" style="display:none">
@@ -241,6 +256,9 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
       <span id="smsg">Ready</span>
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none">
+        <input type="checkbox" id="chk-advance" style="cursor:pointer"> Auto-advance
+      </label>
     </div>
 
   </div><!-- /.main -->
@@ -257,6 +275,7 @@ var startUTC  = 0;
 var leafMap   = null, gpsMarker = null;
 var syncLock  = false;
 var hasRear   = false, hasGPS = false;
+var recsList  = [], activeRecIdx = -1;
 
 var vF = document.getElementById('vf');
 var vR = document.getElementById('vr');
@@ -307,7 +326,8 @@ function buildList(recs) {
     return;
   }
   listEl.innerHTML = '';
-  recs.forEach(function(r) {
+  recsList = recs;
+  recs.forEach(function(r, idx) {
     var yy = r.d.slice(0,2), mo = r.d.slice(2,4), dd = r.d.slice(4,6);
     var hh = r.t.slice(0,2), mm = r.t.slice(2,4), ss = r.t.slice(4,6);
     var el = document.createElement('div');
@@ -326,6 +346,7 @@ function buildList(recs) {
     el.addEventListener('dblclick', function() {
       document.querySelectorAll('.rec-item').forEach(function(x){ x.classList.remove('active'); });
       el.classList.add('active');
+      activeRecIdx = idx;
       loadRecording(r.d, r.t);
     });
     listEl.appendChild(el);
@@ -357,16 +378,16 @@ function loadRecording(d, t) {
   /* Front video — always */
   vF.src = URL.createObjectURL(allFiles[pF]);
 
-  /* Rear video — optional */
-  var rearWrap = document.getElementById('vcam-rear');
-  var videoRow = document.getElementById('video-row');
+  /* Rear video — optional; box always stays same size as front */
+  var rearVideo = document.getElementById('vr');
+  var rearBlank = document.getElementById('vcam-rear-blank');
   if (hasRear) {
     vR.src = URL.createObjectURL(allFiles[pR]);
-    rearWrap.style.display = '';
-    videoRow.style.gridTemplateColumns = '1fr 1fr';
+    rearVideo.style.display = '';
+    rearBlank.style.display = 'none';
   } else {
-    rearWrap.style.display = 'none';
-    videoRow.style.gridTemplateColumns = '1fr';
+    rearVideo.style.display = 'none';
+    rearBlank.style.display = '';
   }
 
   /* NMEA / GPS — optional */
@@ -584,6 +605,27 @@ vR.addEventListener('seeked',     function(){ if (hasRear) syncTo(vF, vR.current
 vF.addEventListener('timeupdate', function(){
   if (hasRear) syncTo(vR, vF.currentTime);
   if (hasGPS)  updateTelemetry(vF.currentTime);
+});
+
+vF.addEventListener('ended', function() {
+  if (!document.getElementById('chk-advance').checked) return;
+  var next = activeRecIdx + 1;
+  if (next >= recsList.length) return;
+  var r = recsList[next];
+  activeRecIdx = next;
+  /* update sidebar highlight */
+  var items = document.querySelectorAll('.rec-item');
+  items.forEach(function(x){ x.classList.remove('active'); });
+  if (items[next]) {
+    items[next].classList.add('active');
+    items[next].scrollIntoView({ block: 'nearest' });
+  }
+  loadRecording(r.d, r.t);
+  /* auto-play once metadata is ready */
+  vF.addEventListener('loadedmetadata', function playOnce() {
+    vF.removeEventListener('loadedmetadata', playOnce);
+    vF.play().catch(function(){});
+  });
 });
 
 /* ═══ Show player ════════════════════════════════════════ */
