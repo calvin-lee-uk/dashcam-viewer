@@ -11,7 +11,8 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,
 
 header{
   height:46px;background:#1c1c1c;color:#fff;
-  display:flex;align-items:center;padding:0 18px;gap:14px;flex-shrink:0;
+  /*display:flex;*/align-items:center;padding:0 18px;gap:14px;flex-shrink:0;
+  display:none;
 }
 header h1{font-size:14px;font-weight:500;letter-spacing:.01em}
 header .sub{font-size:11px;color:#777}
@@ -59,8 +60,8 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
 }
 .rec-item:hover{background:#f5f4ef}
 .rec-item.active{background:#e5f0fa}
-.ri-date{font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:#1a1a1a}
-.ri-time{font-size:11px;color:#999;font-variant-numeric:tabular-nums}
+.ri-date{font-size:12px;font-variant-numeric:tabular-nums;color:#1a1a1a;display:inline;padding-right:1em;}
+.ri-time{font-size:12px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:1em;}
 .rec-item.active .ri-date{color:#1a6ea8}
 .rec-item.active .ri-time{color:#5a9fd4}
 
@@ -447,7 +448,7 @@ function syncMapHeight() {
   if (!telem || !mapEl) return;
   var h = telem.getBoundingClientRect().height;
   if (h > 0) {
-    mapEl.style.height = h + 'px';
+    mapEl.style.height = (h - 8) + 'px';
     if (leafMap) leafMap.invalidateSize();
   }
 }
