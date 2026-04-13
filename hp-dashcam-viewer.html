@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HP Dashcam Viewer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, Arial, sans-serif; background: #f0efe9; color: #1a1a1a; min-height: 100vh; }
+
+header {
+  background: #1c1c1c;
+  color: #fff;
+  padding: 0 20px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+header h1 { font-size: 15px; font-weight: 500; letter-spacing: 0.01em; }
+header .sub { font-size: 12px; color: #888; }
+.osm-badge { margin-left: auto; font-size: 11px; color: #aaa; }
+
+.container { padding: 20px; max-width: 1440px; margin: 0 auto; }
+
+/* ─── file loader ─────────────────────────────────────── */
+.load-card {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e2dd;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.load-card h2 { font-size: 14px; font-weight: 500; margin-bottom: 16px; color: #444; }
+.file-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+.fbtn { position: relative; }
+.fbtn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; }
+.fbtn label {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 12px; border: 1.5px dashed #ccc; border-radius: 8px;
+  cursor: pointer; text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.fbtn label:hover { border-color: #5a9fd4; background: #f0f7ff; }
+.fbtn.loaded label { border-color: #5c9e2c; background: #f2f9ea; border-style: solid; }
+.fbtn .ficon { font-size: 22px; line-height: 1; }
+.fbtn .fname-label { font-size: 13px; font-weight: 500; }
+.fbtn .fhint { font-size: 11px; color: #999; }
+.fbtn .fselected { font-size: 11px; color: #5c9e2c; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fbtn.loaded .ficon::after { content: " ✓"; font-size: 14px; color: #5c9e2c; }
+
+/* ─── player layout ───────────────────────────────────── */
+#player { display: none; }
+
+.video-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.video-wrap {
+  background: #000; border-radius: 8px; overflow: hidden;
+  position: relative;
+}
+.vcam-label {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.video-wrap video { width: 100%; display: block; }
+
+.lower-row { display: grid; grid-template-columns: 1fr 260px; gap: 10px; }
+#map {
+  height: 310px; border-radius: 8px;
+  border: 1px solid #e2e2dd;
+  background: #dde;
+}
+
+/* ─── telemetry panel ─────────────────────────────────── */
+.telem {
+  background: #fff; border-radius: 8px;
+  border: 1px solid #e2e2dd;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.telem-title { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+.tcard { background: #f5f4ef; border-radius: 6px; padding: 9px 12px; }
+.tcard .tlabel { font-size: 10px; color: #999; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tcard .tval { font-size: 22px; font-weight: 500; line-height: 1.1; }
+.tcard .tunit { font-size: 12px; color: #888; }
+.tcard.small .tval { font-size: 13px; }
+.tgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tgrid3 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ─── status bar ──────────────────────────────────────── */
+.statusbar {
+  margin-top: 10px; background: #fff;
+  border-radius: 8px; border: 1px solid #e2e2dd;
+  padding: 9px 16px; display: flex; gap: 12px;
+  align-items: center; font-size: 12px; color: #666;
+  flex-wrap: wrap;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #5c9e2c; display: inline-block; flex-shrink: 0; }
+.dot.warn { background: #d08c10; }
+.sep { color: #ccc; }
+
+/* heading toggle instructions */
+.hint-bar {
+  margin-top: 10px; font-size: 12px; color: #888;
+  text-align: center; display: none;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>HP Dashcam Viewer</h1>
+  <span class="sub">Dual camera · NMEA GPS sync · Linux compatible</span>
+  <span class="osm-badge">Map: © OpenStreetMap contributors</span>
+</header>
+
+<div class="container">
+
+  <div class="load-card" id="load-card">
+    <h2>Load your recording files — all three required to begin</h2>
+    <div class="file-grid">
+
+      <div class="fbtn" id="btn-front">
+        <input type="file" id="input-front" accept="video/*,.mov,.mp4,.avi">
+        <label for="input-front">
+          <span class="ficon">&#9654;</span>
+          <span class="fname-label">Front camera</span>
+          <span class="fhint">F/HPIM…F.MOV</span>
+          <span class="fselected" id="sel-front">Click to select</span>
+        </label>
+      </div>
+
+      <div class="fbtn" id="btn-rear">
+        <input type="file" id="input-rear" accept="video/*,.mov,.mp4,.avi">
+        <label for="input-rear">
+          <span class="ficon">&#9654;</span>
+          <span class="fname-label">Rear camera</span>
+          <span class="fhint">R/HPIM…R.MOV</span>
+          <span class="fselected" id="sel-rear">Click to select</span>
+        </label>
+      </div>
+
+      <div class="fbtn" id="btn-nmea">
+        <input type="file" id="input-nmea" accept=".nmea,.NMEA,.txt,.log,.nme">
+        <label for="input-nmea">
+          <span class="ficon">&#9670;</span>
+          <span class="fname-label">GPS log (NMEA)</span>
+          <span class="fhint">HPIM….NMEA</span>
+          <span class="fselected" id="sel-nmea">Click to select</span>
+        </label>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="player">
+    <div class="video-row">
+      <div class="video-wrap">
+        <span class="vcam-label">FRONT</span>
+        <video id="video-front" controls preload="metadata"></video>
+      </div>
+      <div class="video-wrap">
+        <span class="vcam-label">REAR</span>
+        <video id="video-rear" controls preload="metadata"></video>
+      </div>
+    </div>
+
+    <div class="lower-row">
+      <div id="map"></div>
+
+      <div class="telem">
+        <div class="telem-title">Telemetry</div>
+
+        <div class="tcard">
+          <div class="tlabel">Speed</div>
+          <div>
+            <span class="tval" id="tel-speed">—</span>
+            <span class="tunit"> km/h</span>
+          </div>
+        </div>
+
+        <div class="tcard">
+          <div class="tlabel">UTC time</div>
+          <div class="tval" style="font-size:15px;" id="tel-time">—</div>
+        </div>
+
+        <div class="tgrid2">
+          <div class="tcard small">
+            <div class="tlabel">Latitude</div>
+            <div class="tval" id="tel-lat">—</div>
+          </div>
+          <div class="tcard small">
+            <div class="tlabel">Longitude</div>
+            <div class="tval" id="tel-lon">—</div>
+          </div>
+        </div>
+
+        <div class="tgrid2">
+          <div class="tcard small">
+            <div class="tlabel">Altitude</div>
+            <div class="tval" id="tel-alt">—</div>
+            <span class="tunit">m</span>
+          </div>
+          <div class="tcard small">
+            <div class="tlabel">Satellites</div>
+            <div class="tval" id="tel-sat">—</div>
+          </div>
+        </div>
+
+        <div class="tcard small">
+          <div class="tlabel">HDOP</div>
+          <div class="tval" id="tel-hdop">—</div>
+        </div>
+
+        <div class="tcard small">
+          <div class="tlabel">Heading</div>
+          <div class="tval" id="tel-course">—</div>
+          <span class="tunit">°</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="statusbar" id="statusbar">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-msg">Ready</span>
+      <span class="sep">·</span>
+      <span id="status-detail"></span>
+    </div>
+    <div class="hint-bar" id="hint-bar">
+      Playback controls on either camera will sync both. GPS marker follows playback position.
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════
+   State
+══════════════════════════════════════════════════════════ */
+var gpsPoints  = [];   // [{utcSec, lat, lon, speedKmh, course}]
+var ggaLookup  = {};   // utcSec(rounded) → {sats, hdop, alt}
+var startUTC   = 0;
+var map, marker, polyline;
+var frontOk    = false, rearOk = false, gpsOk = false;
+var syncLock   = false;
+
+var vF = document.getElementById('video-front');
+var vR = document.getElementById('video-rear');
+
+/* ═══════════════════════════════════════════════════════
+   NMEA parser
+══════════════════════════════════════════════════════════ */
+function toSec(t) {
+  /* HHMMSS.sss */
+  return parseInt(t.slice(0,2)) * 3600
+       + parseInt(t.slice(2,4)) * 60
+       + parseFloat(t.slice(4));
+}
+
+function dmm(val, hem) {
+  /* "5128.5477","N" → decimal degrees */
+  var dot = val.indexOf('.');
+  var deg = parseFloat(val.slice(0, dot - 2));
+  var min = parseFloat(val.slice(dot - 2));
+  var d = deg + min / 60;
+  return (hem === 'S' || hem === 'W') ? -d : d;
+}
+
+function parseNMEA(text) {
+  var rmc = [], gga = {};
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i].trim();
+    /* strip checksum for length check */
+    var star = ln.indexOf('*');
+    var body = star !== -1 ? ln.slice(1, star) : ln.slice(1);
+    var p = body.split(',');
+    var id = p[0];
+
+    if ((id === 'GPRMC' || id === 'GNRMC') && p.length >= 10 && p[2] === 'A') {
+      if (!p[3] || !p[5] || !p[1]) continue;
+      try {
+        rmc.push({
+          utcSec   : toSec(p[1]),
+          lat      : dmm(p[3], p[4]),
+          lon      : dmm(p[5], p[6]),
+          speedKmh : (parseFloat(p[7]) || 0) * 1.852,
+          course   : parseFloat(p[8]) || 0
+        });
+      } catch(e) {}
+    }
+
+    if ((id === 'GPGGA' || id === 'GNGGA') && p.length >= 10 && p[1]) {
+      try {
+        var sec = Math.round(toSec(p[1]));
+        gga[sec] = {
+          sats : parseInt(p[7]) || 0,
+          hdop : parseFloat(p[8]) || 0,
+          alt  : parseFloat(p[9]) || 0
+        };
+      } catch(e) {}
+    }
+  }
+  return { rmc: rmc, gga: gga };
+}
+
+/* ═══════════════════════════════════════════════════════
+   Binary-search nearest GPS point
+══════════════════════════════════════════════════════════ */
+function nearest(sec) {
+  var pts = gpsPoints, lo = 0, hi = pts.length - 1;
+  while (lo < hi) {
+    var mid = (lo + hi) >> 1;
+    if (pts[mid].utcSec < sec) lo = mid + 1; else hi = mid;
+  }
+  if (lo > 0 && Math.abs(pts[lo-1].utcSec - sec) < Math.abs(pts[lo].utcSec - sec))
+    return pts[lo-1];
+  return pts[lo];
+}
+
+/* ═══════════════════════════════════════════════════════
+   Map init
+══════════════════════════════════════════════════════════ */
+function initMap() {
+  if (map) { map.remove(); map = null; }
+  map = L.map('map', { zoomSnap: 0.5 });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom     : 19
+  }).addTo(map);
+
+  var lls = gpsPoints.map(function(p){ return [p.lat, p.lon]; });
+
+  polyline = L.polyline(lls, { color: '#2a80c8', weight: 4, opacity: 0.85 }).addTo(map);
+
+  /* start / end markers */
+  L.circleMarker(lls[0], {radius:6, fillColor:'#5c9e2c', color:'#fff', weight:2, fillOpacity:1})
+    .bindTooltip('Start').addTo(map);
+  L.circleMarker(lls[lls.length-1], {radius:6, fillColor:'#c84820', color:'#fff', weight:2, fillOpacity:1})
+    .bindTooltip('End').addTo(map);
+
+  /* current-position marker using a DivIcon so it's always on top */
+  var icon = L.divIcon({
+    className : '',
+    html      : '<div style="width:14px;height:14px;background:#e05a30;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
+    iconSize  : [14,14],
+    iconAnchor: [7,7]
+  });
+  marker = L.marker(lls[0], { icon: icon, zIndexOffset: 1000 }).addTo(map);
+  map.fitBounds(polyline.getBounds(), { padding: [24, 24] });
+}
+
+/* ═══════════════════════════════════════════════════════
+   GPS / telemetry update on timeupdate
+══════════════════════════════════════════════════════════ */
+function updateGPS(videoTime) {
+  if (!gpsPoints.length || !map) return;
+  var sec = startUTC + videoTime;
+  var p   = nearest(sec);
+
+  marker.setLatLng([p.lat, p.lon]);
+  if (!map.getBounds().contains([p.lat, p.lon]))
+    map.panTo([p.lat, p.lon], { animate: true, duration: 0.4 });
+
+  /* speed */
+  document.getElementById('tel-speed').textContent  = p.speedKmh.toFixed(1);
+  /* lat / lon */
+  document.getElementById('tel-lat').textContent    = p.lat.toFixed(5) + '°';
+  document.getElementById('tel-lon').textContent    = p.lon.toFixed(5) + '°';
+  /* course */
+  document.getElementById('tel-course').textContent = Math.round(p.course);
+  /* UTC time */
+  var s = Math.floor(sec) % 86400;
+  var hh = Math.floor(s/3600), mm = Math.floor((s%3600)/60), ss = s%60;
+  document.getElementById('tel-time').textContent =
+    pad(hh) + ':' + pad(mm) + ':' + pad(ss) + ' UTC';
+  /* GGA data */
+  var g = ggaLookup[Math.round(sec)];
+  if (g) {
+    document.getElementById('tel-alt').textContent  = g.alt.toFixed(1);
+    document.getElementById('tel-sat').textContent  = g.sats;
+    document.getElementById('tel-hdop').textContent = g.hdop.toFixed(1);
+  }
+}
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+/* ═══════════════════════════════════════════════════════
+   Video sync
+══════════════════════════════════════════════════════════ */
+function syncTo(other, t) {
+  if (syncLock) return;
+  if (Math.abs(other.currentTime - t) > 0.4) {
+    syncLock = true;
+    other.currentTime = t;
+    setTimeout(function(){ syncLock = false; }, 150);
+  }
+}
+
+vF.addEventListener('play',      function(){ vR.play().catch(function(){}); });
+vF.addEventListener('pause',     function(){ vR.pause(); });
+vF.addEventListener('seeked',    function(){ syncTo(vR, vF.currentTime); });
+vR.addEventListener('play',      function(){ vF.play().catch(function(){}); });
+vR.addEventListener('pause',     function(){ vF.pause(); });
+vR.addEventListener('seeked',    function(){ syncTo(vF, vR.currentTime); });
+
+vF.addEventListener('timeupdate', function() {
+  syncTo(vR, vF.currentTime);
+  updateGPS(vF.currentTime);
+});
+
+/* ═══════════════════════════════════════════════════════
+   Readiness check
+══════════════════════════════════════════════════════════ */
+function checkReady() {
+  if (!(frontOk && rearOk && gpsOk)) return;
+  document.getElementById('player').style.display = 'block';
+  document.getElementById('hint-bar').style.display = 'block';
+  initMap();
+  var dur = gpsPoints[gpsPoints.length-1].utcSec - gpsPoints[0].utcSec;
+  document.getElementById('status-msg').textContent    = 'GPS track loaded — ' + gpsPoints.length + ' fix points';
+  document.getElementById('status-detail').textContent = 'Duration ' + dur.toFixed(0) + ' s · Start UTC ' +
+    pad(Math.floor(startUTC/3600)) + ':' + pad(Math.floor((startUTC%3600)/60)) + ':' + pad(Math.floor(startUTC%60));
+}
+
+/* ═══════════════════════════════════════════════════════
+   File inputs
+══════════════════════════════════════════════════════════ */
+function markLoaded(btnId, labelId, file) {
+  document.getElementById(btnId).classList.add('loaded');
+  document.getElementById(labelId).textContent = file.name;
+}
+
+document.getElementById('input-front').onchange = function() {
+  var f = this.files[0]; if (!f) return;
+  vF.src = URL.createObjectURL(f);
+  markLoaded('btn-front','sel-front', f);
+  frontOk = true; checkReady();
+};
+
+document.getElementById('input-rear').onchange = function() {
+  var f = this.files[0]; if (!f) return;
+  vR.src = URL.createObjectURL(f);
+  markLoaded('btn-rear','sel-rear', f);
+  rearOk = true; checkReady();
+};
+
+document.getElementById('input-nmea').onchange = function() {
+  var f = this.files[0]; if (!f) return;
+  markLoaded('btn-nmea','sel-nmea', f);
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var parsed = parseNMEA(e.target.result);
+    gpsPoints  = parsed.rmc;
+    ggaLookup  = parsed.gga;
+    if (gpsPoints.length === 0) {
+      document.getElementById('status-dot').classList.add('warn');
+      document.getElementById('status-msg').textContent = 'No valid GPS fixes found in NMEA file.';
+      return;
+    }
+    startUTC = gpsPoints[0].utcSec;
+    gpsOk = true; checkReady();
+  };
+  reader.readAsText(f);
+};
+</script>
+</body>
+</html>
