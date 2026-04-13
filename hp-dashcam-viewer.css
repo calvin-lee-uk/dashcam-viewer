@@ -1,0 +1,122 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,sans-serif;background:#f0efe9;color:#1a1a1a}
+
+/* ── Root: vertical split ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;padding:8px;gap:8px}
+
+/* ── Top: video row ── */
+.video-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.vcam{background:#000;border-radius:7px;overflow:hidden;position:relative}
+.vcam-lbl{
+  position:absolute;top:7px;left:7px;z-index:1;
+  background:rgba(0,0,0,.55);color:#fff;
+  font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px;letter-spacing:.05em;
+}
+.vcam video{width:100%;display:block}
+.vcam-blank{
+  width:100%;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#555;letter-spacing:.03em;background:#111;
+}
+
+/* ── Bottom: lower-row + sbar ── */
+.lower-section{display:flex;flex-direction:column;flex:1;min-height:0;gap:6px}
+
+/* 3-column grid: sidebar | map | telem */
+.lower-row{
+  display:grid;
+  grid-template-columns:200px 1fr 160px;
+  gap:8px;flex:1;min-height:0;
+}
+
+/* ── Sidebar (now inside lower-row) ── */
+.sidebar{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+}
+.sb-top{padding:8px;border-bottom:1px solid #e2e2dd;flex-shrink:0}
+.folder-wrap{position:relative}
+.folder-wrap input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;z-index:2;width:100%;height:100%;
+}
+.folder-wrap label{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 8px;background:#f5f4ef;
+  border:1px solid #ddd;border-radius:6px;
+  font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap;
+}
+.folder-wrap label:hover{background:#e8e7e0}
+.folder-path{
+  margin-top:4px;font-size:10px;color:#aaa;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;min-height:13px;
+}
+.sb-label{
+  font-size:9px;font-weight:500;text-transform:uppercase;
+  letter-spacing:.07em;color:#bbb;padding:6px 8px 3px;flex-shrink:0;
+}
+.rec-list{flex:1;overflow-y:auto}
+.rec-empty{padding:14px 8px;font-size:11px;color:#c0bfb8;text-align:center;line-height:1.8}
+.rec-item{
+  padding:5px 8px;border-bottom:1px solid #f5f4ef;
+  cursor:pointer;transition:background .1s;user-select:none;
+}
+.rec-item:hover{background:#f5f4ef}
+.rec-item.active{background:#e5f0fa}
+.ri-date{font-size:11px;font-variant-numeric:tabular-nums;color:#1a1a1a;display:inline;padding-right:.6em}
+.ri-wkday{font-size:11px;/*color:#999;*/display:inline}
+.ri-time{font-size:11px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:.6em}
+.rec-item.active .ri-date{color:#1a6ea8}
+.rec-item.active .ri-time{color:#5a9fd4}
+.ri-badges{margin-top:2px;display:flex;gap:3px}
+.ri-badge{
+  font-size:9px;font-weight:500;letter-spacing:.04em;
+  padding:1px 4px;border-radius:3px;
+  background:#eef4ea;color:#5c9e2c;border:1px solid #c8e0b8;
+}
+.ri-badge.miss{background:#f5f4ef;color:#bbb;border-color:#e2e2dd}
+
+/* ── Map ── */
+#map{border-radius:7px;border:1px solid #e2e2dd}
+
+/* ── Telemetry (vertical list) ── */
+.telem{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  padding:8px;display:flex;flex-direction:column;gap:0;overflow-y:auto;
+}
+.telem-title{
+  font-size:9px;font-weight:500;text-transform:uppercase;
+  letter-spacing:.07em;color:#bbb;margin-bottom:6px;flex-shrink:0;
+}
+.trow{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid #f5f4ef;flex-shrink:0;
+}
+.trow:last-child{border-bottom:none}
+.trow .lbl{font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.05em}
+.trow .val{font-size:12px;font-weight:500;color:#1a1a1a;text-align:right}
+.trow .val.big{font-size:16px}
+.trow select{
+  font-size:10px;padding:1px 2px;border:1px solid #ddd;
+  border-radius:4px;background:#f5f4ef;color:#555;cursor:pointer;
+  max-width:100px;
+}
+
+/* ── Status bar ── */
+.sbar{
+  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
+  padding:6px 10px;display:flex;gap:8px;align-items:center;
+  /*font-size:10px;color:#888;*/
+  flex-wrap:wrap;flex-shrink:0;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:#5c9e2c;flex-shrink:0;display:inline-block}
+.dot.w{background:#d08c10}
+/*.slocation { color:#aaa;font-style:italic; } */
+.lbl-advance { margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none; }
+
+/* ── Placeholder ── */
+.placeholder{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;text-align:center;
+}
+.ph-ico{font-size:34px;opacity:.35}
+.placeholder p{font-size:13px;line-height:1.7;color:#bbb}

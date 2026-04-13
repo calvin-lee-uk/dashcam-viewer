@@ -4,139 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HP Dashcam Viewer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,Arial,sans-serif;background:#f0efe9;color:#1a1a1a}
-
-header{
-  height:46px;background:#1c1c1c;color:#fff;
-  /*display:flex;*/align-items:center;padding:0 18px;gap:14px;flex-shrink:0;
-  display:none;
-}
-header h1{font-size:14px;font-weight:500;letter-spacing:.01em}
-header .sub{font-size:11px;color:#777}
-header .badge{margin-left:auto;font-size:10px;color:#555}
-
-.shell{display:flex;height:calc(100vh - 46px);overflow:hidden}
-
-/* ── Sidebar ── */
-.sidebar{
-  width:212px;flex-shrink:0;background:#fff;
-  border-right:1px solid #e2e2dd;
-  display:flex;flex-direction:column;overflow:hidden;
-}
-.sb-top{padding:10px;border-bottom:1px solid #e2e2dd;flex-shrink:0}
-.folder-wrap{position:relative}
-.folder-wrap input[type=file]{
-  position:absolute;inset:0;opacity:0;
-  cursor:pointer;z-index:2;width:100%;height:100%;
-}
-.folder-wrap label{
-  display:flex;align-items:center;gap:7px;
-  padding:7px 10px;background:#f5f4ef;
-  border:1px solid #ddd;border-radius:6px;
-  font-size:11px;cursor:pointer;
-  transition:background .15s;white-space:nowrap;
-}
-.folder-wrap label:hover{background:#e8e7e0}
-.folder-path{
-  margin-top:5px;font-size:10px;color:#aaa;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  padding:0 2px;min-height:13px;
-}
-.sb-label{
-  font-size:9px;font-weight:500;text-transform:uppercase;
-  letter-spacing:.07em;color:#bbb;padding:8px 10px 4px;flex-shrink:0;
-}
-.rec-list{flex:1;overflow-y:auto}
-.rec-empty{
-  padding:18px 10px;font-size:11px;
-  color:#c0bfb8;text-align:center;line-height:1.8;
-}
-.rec-item{
-  padding:7px 10px;border-bottom:1px solid #f5f4ef;
-  cursor:pointer;transition:background .1s;user-select:none;
-}
-.rec-item:hover{background:#f5f4ef}
-.rec-item.active{background:#e5f0fa}
-.ri-date{font-size:12px;font-variant-numeric:tabular-nums;color:#1a1a1a;display:inline;padding-right:1em;}
-.ri-wkday{font-size:12px;color:#999;display:inline;}
-.ri-time{font-size:12px;font-weight:500;color:#000;font-variant-numeric:tabular-nums;display:inline;padding-left:1em;}
-.rec-item.active .ri-date{color:#1a6ea8}
-.rec-item.active .ri-time{color:#5a9fd4}
-.ri-badges{margin-top:3px;display:flex;gap:3px}
-.ri-badge{
-  font-size:9px;font-weight:500;letter-spacing:.04em;
-  padding:1px 5px;border-radius:3px;
-  background:#eef4ea;color:#5c9e2c;border:1px solid #c8e0b8;
-}
-.ri-badge.miss{background:#f5f4ef;color:#bbb;border-color:#e2e2dd}
-
-/* ── Main ── */
-.main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:10px;gap:8px}
-
-.placeholder{
-  flex:1;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  gap:10px;text-align:center;
-}
-.ph-ico{font-size:34px;opacity:.35}
-.placeholder p{font-size:13px;line-height:1.7;color:#bbb}
-
-/* videos */
-.video-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
-.vcam{background:#000;border-radius:7px;overflow:hidden;position:relative}
-.vcam-lbl{
-  position:absolute;top:7px;left:7px;z-index:1;
-  background:rgba(0,0,0,.55);color:#fff;
-  font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px;letter-spacing:.05em;
-}
-.vcam video{width:100%;display:block}
-.vcam-blank{
-  width:100%;aspect-ratio:16/9;
-  display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#555;letter-spacing:.03em;
-  background:#111;
-}
-.vcam-blank{
-  width:100%;aspect-ratio:16/9;
-  display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#555;letter-spacing:.03em;
-}
-
-/* lower */
-.lower-row{display:grid;grid-template-columns:1fr 232px;gap:8px;flex:1;min-height:0}
-#map{border-radius:7px;border:1px solid #e2e2dd}
-
-/* telemetry */
-.telem{
-  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
-  padding:10px;display:flex;flex-direction:column;gap:7px;overflow-y:auto;
-}
-.telem-head{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.telem-title{font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#bbb}
-.telem-ctrls{display:flex;gap:4px}
-.telem-ctrls select{
-  font-size:10px;padding:2px 3px;border:1px solid #ddd;
-  border-radius:4px;background:#f5f4ef;color:#555;cursor:pointer;
-}
-.tcard{background:#f5f4ef;border-radius:5px;padding:7px 9px;flex-shrink:0}
-.tcard .lbl{font-size:9px;color:#bbb;margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
-.tcard .val{font-size:19px;font-weight:500;line-height:1.1;color:#1a1a1a}
-.tcard .unt{font-size:10px;color:#aaa}
-.tcard.sm .val{font-size:12px}
-.tg2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-
-/* status */
-.sbar{
-  background:#fff;border-radius:7px;border:1px solid #e2e2dd;
-  padding:7px 12px;display:flex;gap:8px;align-items:center;
-  font-size:10px;color:#888;flex-wrap:wrap;flex-shrink:0;
-}
-.dot{width:6px;height:6px;border-radius:50%;background:#5c9e2c;flex-shrink:0;display:inline-block}
-.dot.w{background:#d08c10}
-</style>
+<!--link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/-->
+<link rel="stylesheet" href="leaflet.css"/>
+<link rel="stylesheet" href="hp-dashcam-viewer.css"/>
 </head>
 <body>
 
@@ -257,7 +127,8 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
       <span id="smsg">Ready</span>
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
-      <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none">
+      <span id="slocation" style="color:#aaa;font-style:italic"></span>
+      <label id="lbl-advance">
         <input type="checkbox" id="chk-advance" checked style="cursor:pointer"> Auto-advance
       </label>
     </div>
@@ -265,7 +136,8 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
   </div><!-- /.main -->
 </div><!-- /.shell -->
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!--script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script-->
+<script src="leaflet.js"></script>
 <script>
 /* ═══ State ══════════════════════════════════════════════ */
 var allFiles  = {};
@@ -433,6 +305,7 @@ function loadRecording(d, t) {
         gpsPoints.length + ' GPS fixes \u00b7 ' + availNote(),
         'Duration ' + Math.round(dur) + 's \u00b7 Start UTC ' + fmtTime(startUTC, 0)
       );
+      reverseGeocode(gpsPoints[0].lat, gpsPoints[0].lon);
     };
     reader.readAsText(allFiles[pN]);
   } else {
@@ -446,6 +319,27 @@ function availNote() {
   if (hasRear) parts.push('Rear'); else parts.push('(no rear)');
   if (hasGPS)  parts.push('GPS');  else parts.push('(no GPS)');
   return parts.join(' \u00b7 ');
+}
+
+/* ═══ Reverse geocode (Nominatim, called once per recording) ═══ */
+function reverseGeocode(lat, lon) {
+  var locEl = document.getElementById('slocation');
+  locEl.textContent = '';
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
+            lat.toFixed(6) + '&lon=' + lon.toFixed(6) + '&zoom=16&addressdetails=1';
+  fetch(url, { headers: { 'Accept-Language': 'en' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var a = data.address || {};
+      /* Town: prefer city > town > village > suburb > county */
+      var town = a.city || a.town || a.village || a.suburb || a.county || '';
+      var postcode = a.postcode || '';
+      var parts = [];
+      if (postcode) parts.push(postcode);
+      if (town)     parts.push(town);
+      if (parts.length) locEl.textContent = '\u00b7 ' + parts.join(', ');
+    })
+    .catch(function(){ /* silently ignore — network may be unavailable */ });
 }
 
 /* ═══ NMEA parser ════════════════════════════════════════ */
