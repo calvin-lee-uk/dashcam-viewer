@@ -199,7 +199,7 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
               <option value="-3">UTC−3</option>
               <option value="-2">UTC−2</option>
               <option value="-1">UTC−1</option>
-              <option value="0" selected>UTC</option>
+              <option value="0">UTC</option>
               <option value="1">UTC+1 BST</option>
               <option value="2">UTC+2 CEST</option>
               <option value="3">UTC+3 MSK</option>
@@ -217,7 +217,7 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
             </select>
             <select id="sel-spd" title="Speed unit">
               <option value="kmh">km/h</option>
-              <option value="mph">mph</option>
+              <option value="mph" selected>mph</option>
               <option value="kn">kn</option>
             </select>
           </div>
@@ -257,7 +257,7 @@ header .badge{margin-left:auto;font-size:10px;color:#555}
       <span style="color:#ddd">·</span>
       <span id="sdetail"></span>
       <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:#888;user-select:none">
-        <input type="checkbox" id="chk-advance" style="cursor:pointer"> Auto-advance
+        <input type="checkbox" id="chk-advance" checked style="cursor:pointer"> Auto-advance
       </label>
     </div>
 
@@ -276,6 +276,20 @@ var leafMap   = null, gpsMarker = null;
 var syncLock  = false;
 var hasRear   = false, hasGPS = false;
 var recsList  = [], activeRecIdx = -1;
+
+/* Set timezone selector to system local offset */
+(function() {
+  var off = -(new Date().getTimezoneOffset()) / 60; /* minutes west → hours east */
+  var sel = document.getElementById('sel-tz');
+  /* find closest option value */
+  var best = null, bestDist = Infinity;
+  for (var i = 0; i < sel.options.length; i++) {
+    var v = parseFloat(sel.options[i].value);
+    var d = Math.abs(v - off);
+    if (d < bestDist) { bestDist = d; best = i; }
+  }
+  if (best !== null) sel.selectedIndex = best;
+})();
 
 var vF = document.getElementById('vf');
 var vR = document.getElementById('vr');
@@ -348,6 +362,12 @@ function buildList(recs) {
       el.classList.add('active');
       activeRecIdx = idx;
       loadRecording(r.d, r.t);
+      if (document.getElementById('chk-advance').checked) {
+        vF.addEventListener('loadedmetadata', function playOnce() {
+          vF.removeEventListener('loadedmetadata', playOnce);
+          vF.play().catch(function(){});
+        });
+      }
     });
     listEl.appendChild(el);
   });
